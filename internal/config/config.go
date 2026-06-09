@@ -54,12 +54,27 @@ type OutputConfig struct {
 	ArtifactsDir string `yaml:"artifacts_dir"`
 }
 
+// PentestConfig controls the optional autonomous pentest phase (requires cai-framework).
+type PentestConfig struct {
+	// Port the CAI HTTP API server will listen on (default 18765).
+	Port int `yaml:"port"`
+	// APIKey for the CAI server (falls back to ALIAS_API_KEY env var).
+	APIKey string `yaml:"api_key_env"`
+	// StaticAgents are the CAI agent names used for code analysis.
+	StaticAgents []string `yaml:"static_agents"`
+	// DynamicAgents are the CAI agent names used for live-target testing.
+	DynamicAgents []string `yaml:"dynamic_agents"`
+	// TimeoutMinutes caps the entire pentest phase duration.
+	TimeoutMinutes int `yaml:"timeout_minutes"`
+}
+
 type Config struct {
 	Models     ModelsConfig     `yaml:"models"`
 	Scope      ScopeConfig      `yaml:"scope"`
 	Tools      ToolsConfig      `yaml:"tools"`
 	Guardrails GuardrailsConfig `yaml:"guardrails"`
 	Output     OutputConfig     `yaml:"output"`
+	Pentest    PentestConfig    `yaml:"pentest"`
 }
 
 func Load(path string) (*Config, error) {
@@ -88,6 +103,30 @@ func (c *Config) expandEnvKeys() {
 			}
 		}
 	}
+}
+
+// ProviderEnvMap returns a map of well-known LLM provider env var names → their
+// resolved values, for injection into the CAI subprocess environment.
+func (c *Config) ProviderEnvMap() map[string]string {
+	m := make(map[string]string)
+	knownKeys := []string{
+		"ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY",
+		"GOOGLE_API_KEY", "ALIAS_API_KEY",
+	}
+	for _, k := range knownKeys {
+		if v := os.Getenv(k); v != "" {
+			m[k] = v
+		}
+	}
+	// Also resolve keys declared in the config.
+	for _, p := range c.Models.Providers {
+		if p.APIKeyEnv != "" {
+			if v := os.Getenv(p.APIKeyEnv); v != "" {
+				m[p.APIKeyEnv] = v
+			}
+		}
+	}
+	return m
 }
 
 func (c *Config) ProviderByName(name string) *ProviderConfig {
@@ -119,6 +158,12 @@ func defaultConfig() *Config {
 		Output: OutputConfig{
 			ReportPath:   "./report.html",
 			ArtifactsDir: "./.codeaudit/runs",
+		},
+		Pentest: PentestConfig{
+			Port:           18765,
+			StaticAgents:   []string{"Code Agent"},
+			DynamicAgents:  []string{"Red Team Agent", "Web Pentester"},
+			TimeoutMinutes: 20,
 		},
 	}
 }

@@ -35,3 +35,19 @@ guardrails:
 output:
   report_path: ./report.html
   artifacts_dir: ./.codeaudit/runs
+
+# Autonomous pentest via CAI (https://github.com/aliasrobotics/cai)
+# Activate with: codeaudit --pentest [--pentest-target <url|host>]
+# Requires: pip install cai-framework
+#
+# Model config is inherited from the providers/roles above — API keys flow
+# automatically from this config into CAI's environment.
+pentest:
+  port: 18765                       # CAI HTTP API server port (localhost only)
+  api_key_env: ""                   # CAI auth key (falls back to ALIAS_API_KEY env)
+  static_agents:                    # Agents for code-level analysis (always run with --pentest)
+    - "Code Agent"
+  dynamic_agents:                   # Agents for active target testing (need --pentest-target)
+    - "Red Team Agent"
+    - "Web Pentester"
+  timeout_minutes: 20               # Max wall-clock for the entire pentest phase
