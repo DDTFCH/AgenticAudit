@@ -1,0 +1,37 @@
+models:
+  providers:
+    - name: anthropic
+      type: anthropic
+      api_key_env: ANTHROPIC_API_KEY
+    - name: openai
+      type: openai
+      api_key_env: OPENAI_API_KEY
+    - name: local
+      type: openai_compatible
+      base_url: http://localhost:11434/v1
+      api_key_env: ""
+  roles:
+    triage:    { provider: local,     model: "qwen2.5-coder:14b" }
+    reasoning: { provider: anthropic, model: "claude-opus-4-8" }
+    report:    { provider: anthropic, model: "claude-sonnet-4-6" }
+
+scope:
+  include: ["**/*.go", "**/*.py", "**/*.js", "**/*.ts", "**/*.env*", "**/*.yaml", "**/*.yml"]
+  exclude: ["**/node_modules/**", "**/vendor/**", "**/.git/**"]
+  follow_dependencies: true
+
+tools:
+  secrets:      { enabled: true,  external: ["gitleaks"] }
+  dependencies: { enabled: true,  external: ["osv-scanner"] }
+  sast:         { enabled: false, external: ["semgrep"] }
+
+guardrails:
+  max_files: 5000
+  max_runtime_minutes: 30
+  max_cost_usd: 10
+  egress_allowlist: ["github.com", "raw.githubusercontent.com"]
+  require_human_approval_for: []
+
+output:
+  report_path: ./report.html
+  artifacts_dir: ./.codeaudit/runs

@@ -1,0 +1,66 @@
+# Dependency security knowledge pack
+# High-risk patterns and well-known vulnerable package ranges.
+
+manifests:
+  - file: package.json
+    ecosystem: npm
+    scan_fields: [dependencies, devDependencies]
+
+  - file: go.mod
+    ecosystem: Go modules
+    scan_fields: [require]
+
+  - file: requirements.txt
+    ecosystem: PyPI
+    scan_fields: [all lines]
+
+  - file: Gemfile / Gemfile.lock
+    ecosystem: RubyGems
+    scan_fields: [gem directives]
+
+  - file: pom.xml
+    ecosystem: Maven
+    scan_fields: [dependency elements]
+
+risk_indicators:
+  - name: outdated-major
+    description: Package is more than one major version behind latest
+    severity: medium
+
+  - name: known-cve
+    description: Package version has a published CVE
+    severity: high
+
+  - name: unmaintained
+    description: Package has not been updated in >2 years and has open security issues
+    severity: medium
+
+  - name: typosquat
+    description: Package name closely resembles a popular package (1-2 char difference)
+    severity: high
+
+advisories:
+  # npm examples
+  - ecosystem: npm
+    package: lodash
+    below: "4.17.21"
+    cve: CVE-2021-23337
+    severity: high
+
+  - ecosystem: npm
+    package: axios
+    below: "0.21.1"
+    cve: CVE-2020-28168
+    severity: medium
+
+  - ecosystem: PyPI
+    package: Pillow
+    below: "9.0.0"
+    cve: CVE-2022-22815
+    severity: medium
+
+  - ecosystem: Go
+    package: golang.org/x/net
+    below: "v0.17.0"
+    cve: CVE-2023-44487
+    severity: high

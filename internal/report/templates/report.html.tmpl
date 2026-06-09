@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>codeaudit — Security Report</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f1117;color:#e2e8f0;line-height:1.6}
+.header{background:linear-gradient(135deg,#1a1f2e,#2d3748);padding:2rem;border-bottom:1px solid #2d3748}
+.header h1{font-size:1.8rem;font-weight:700;color:#f7fafc}
+.header .meta{color:#718096;font-size:.9rem;margin-top:.3rem}
+.rag-bar{display:flex;gap:1rem;padding:1.5rem 2rem;background:#161b27;border-bottom:1px solid #2d3748}
+.rag-card{flex:1;padding:1rem 1.5rem;border-radius:.5rem;text-align:center}
+.rag-card.red{background:rgba(220,38,38,.15);border:1px solid rgba(220,38,38,.4)}
+.rag-card.amber{background:rgba(217,119,6,.15);border:1px solid rgba(217,119,6,.4)}
+.rag-card.green{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.4)}
+.rag-card .count{font-size:2.5rem;font-weight:700}
+.rag-card.red .count{color:#f87171}
+.rag-card.amber .count{color:#fbbf24}
+.rag-card.green .count{color:#34d399}
+.rag-card .label{font-size:.8rem;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin-top:.2rem}
+.summary{padding:1.5rem 2rem;background:#161b27;border-bottom:1px solid #2d3748;color:#cbd5e0}
+.summary strong{color:#f7fafc}
+.controls{display:flex;gap:1rem;padding:1rem 2rem;background:#0f1117;flex-wrap:wrap;align-items:center}
+.controls input,.controls select{background:#1a1f2e;border:1px solid #2d3748;color:#e2e8f0;padding:.4rem .8rem;border-radius:.3rem;font-size:.9rem}
+.controls input{flex:1;min-width:200px}
+.btn{padding:.4rem 1rem;border-radius:.3rem;border:none;cursor:pointer;font-size:.85rem;font-weight:500}
+.btn-export{background:#2d4a8a;color:#e2e8f0}
+.btn-export:hover{background:#3a5fa8}
+table{width:100%;border-collapse:collapse}
+thead{background:#1a1f2e;position:sticky;top:0;z-index:10}
+th{padding:.8rem 1rem;text-align:left;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;cursor:pointer;white-space:nowrap}
+th:hover{color:#e2e8f0}
+td{padding:.8rem 1rem;border-bottom:1px solid #1a1f2e;vertical-align:top;font-size:.875rem}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-block;padding:.15rem .5rem;border-radius:.25rem;font-size:.75rem;font-weight:600;text-transform:uppercase}
+.badge-red{background:rgba(220,38,38,.2);color:#f87171}
+.badge-amber{background:rgba(217,119,6,.2);color:#fbbf24}
+.badge-green{background:rgba(16,185,129,.2);color:#34d399}
+.badge-cat{background:rgba(99,102,241,.15);color:#a5b4fc}
+.loc{font-family:'SF Mono',Monaco,monospace;font-size:.8rem;color:#7c3aed;background:rgba(124,58,237,.1);padding:.1rem .3rem;border-radius:.2rem}
+.status-select{background:#1a1f2e;border:1px solid #2d3748;color:#e2e8f0;padding:.2rem .4rem;border-radius:.25rem;font-size:.8rem}
+.status-open{color:#f87171}
+.status-fixed{color:#34d399}
+.status-accepted{color:#94a3b8}
+.evidence{font-family:monospace;font-size:.8rem;background:#0d1117;padding:.5rem;border-radius:.3rem;margin-top:.3rem;color:#94a3b8;white-space:pre-wrap;word-break:break-all;max-height:100px;overflow:hidden;cursor:pointer}
+.evidence.expanded{max-height:none}
+.detail-row{display:none;background:#12161f}
+.detail-row.visible{display:table-row}
+.detail-cell{padding:1rem 1rem 1rem 3rem;border-bottom:1px solid #1a1f2e}
+.refs a{color:#7c3aed;font-size:.8rem;margin-right:.5rem}
+.hidden{display:none}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>codeaudit — Security Report</h1>
+  <div class="meta">
+    Source: <strong>{{.Source}}</strong> &nbsp;·&nbsp;
+    Generated: <strong>{{.GeneratedAt.Format "2006-01-02 15:04 UTC"}}</strong>
+  </div>
+</div>
+
+<div class="rag-bar">
+  <div class="rag-card red">
+    <div class="count" id="cnt-red">{{.RedCount}}</div>
+    <div class="label">Critical / High</div>
+  </div>
+  <div class="rag-card amber">
+    <div class="count" id="cnt-amber">{{.AmberCount}}</div>
+    <div class="label">Medium</div>
+  </div>
+  <div class="rag-card green">
+    <div class="count" id="cnt-green">{{.GreenCount}}</div>
+    <div class="label">Low / Info</div>
+  </div>
+</div>
+
+{{if .ExecutiveSummary}}
+<div class="summary">
+  <strong>Executive Summary:</strong> {{.ExecutiveSummary}}
+</div>
+{{end}}
+
+<div class="controls">
+  <input type="text" id="search" placeholder="Search findings…" oninput="filterTable()">
+  <select id="filter-sev" onchange="filterTable()">
+    <option value="">All severities</option>
+    <option value="red">Red</option>
+    <option value="amber">Amber</option>
+    <option value="green">Green</option>
+  </select>
+  <select id="filter-cat" onchange="filterTable()">
+    <option value="">All categories</option>
+    <option value="secret">Secret</option>
+    <option value="dependency">Dependency</option>
+    <option value="vulnerability">Vulnerability</option>
+    <option value="misconfig">Misconfig</option>
+  </select>
+  <select id="filter-status" onchange="filterTable()">
+    <option value="">All statuses</option>
+    <option value="open">Open</option>
+    <option value="in_progress">In Progress</option>
+    <option value="fixed">Fixed</option>
+    <option value="retest">Retest</option>
+    <option value="accepted">Accepted</option>
+  </select>
+  <button class="btn btn-export" onclick="exportCSV()">Download CSV</button>
+  <button class="btn btn-export" onclick="exportJSON()">Download JSON</button>
+</div>
+
+<table id="findings-table">
+<thead>
+  <tr>
+    <th onclick="sortTable(0)">#</th>
+    <th onclick="sortTable(1)">Severity</th>
+    <th onclick="sortTable(2)">Category</th>
+    <th onclick="sortTable(3)">Title</th>
+    <th onclick="sortTable(4)">Location</th>
+    <th onclick="sortTable(5)">Confidence</th>
+    <th>Status</th>
+  </tr>
+</thead>
+<tbody id="findings-body">
+{{range $i, $f := .Findings}}
+<tr class="finding-row" data-sev="{{$f.Severity}}" data-cat="{{$f.Category}}" data-id="{{$f.ID}}"
+    onclick="toggleDetail('{{$f.ID}}')" style="cursor:pointer">
+  <td>{{add $i 1}}</td>
+  <td><span class="badge badge-{{$f.Severity}}">{{$f.Severity}}</span></td>
+  <td><span class="badge badge-cat">{{$f.Category}}</span></td>
+  <td>{{$f.Title}}</td>
+  <td><span class="loc">{{$f.Location}}</span></td>
+  <td>{{$f.Confidence}}</td>
+  <td>
+    <select class="status-select" onclick="event.stopPropagation()"
+            onchange="updateStatus('{{$f.ID}}', this.value)">
+      <option value="open" {{if eq $f.Status "open"}}selected{{end}}>Open</option>
+      <option value="in_progress" {{if eq $f.Status "in_progress"}}selected{{end}}>In Progress</option>
+      <option value="fixed" {{if eq $f.Status "fixed"}}selected{{end}}>Fixed</option>
+      <option value="retest" {{if eq $f.Status "retest"}}selected{{end}}>Retest</option>
+      <option value="accepted" {{if eq $f.Status "accepted"}}selected{{end}}>Accepted</option>
+    </select>
+  </td>
+</tr>
+<tr class="detail-row" id="detail-{{$f.ID}}">
+  <td class="detail-cell" colspan="7">
+    <strong>Description:</strong> {{$f.Description}}<br><br>
+    <strong>Remediation:</strong> {{$f.Remediation}}<br>
+    {{if $f.Evidence}}<br><strong>Evidence:</strong>
+    <div class="evidence" onclick="this.classList.toggle('expanded')">{{$f.Evidence}}</div>{{end}}
+    {{if $f.Refs}}<br><strong>References:</strong><br>
+    {{range $f.Refs}}<a class="refs" href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{end}}{{end}}
+    <br><small style="color:#718096">Detected by: {{$f.DetectedBy}} &nbsp;·&nbsp; ID: {{$f.ID}}</small>
+  </td>
+</tr>
+{{end}}
+</tbody>
+</table>
+
+<script>
+// State: finding statuses (persisted in localStorage)
+const STORE_KEY = 'codeaudit_statuses';
+let statuses = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+
+function updateStatus(id, val) {
+  statuses[id] = val;
+  localStorage.setItem(STORE_KEY, JSON.stringify(statuses));
+}
+
+// Restore saved statuses on load.
+document.querySelectorAll('.status-select').forEach(sel => {
+  const id = sel.closest('tr').previousElementSibling.dataset.id;
+  if (statuses[id]) sel.value = statuses[id];
+});
+
+function toggleDetail(id) {
+  const row = document.getElementById('detail-' + id);
+  row.classList.toggle('visible');
+}
+
+function filterTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const sev = document.getElementById('filter-sev').value;
+  const cat = document.getElementById('filter-cat').value;
+  const st = document.getElementById('filter-status').value;
+
+  let rc = 0, ac = 0, gc = 0;
+  document.querySelectorAll('.finding-row').forEach(row => {
+    const id = row.dataset.id;
+    const rowSev = row.dataset.sev;
+    const rowCat = row.dataset.cat;
+    const rowSt = statuses[id] || row.querySelector('.status-select').value;
+    const text = row.innerText.toLowerCase();
+
+    const show = (!q || text.includes(q))
+      && (!sev || rowSev === sev)
+      && (!cat || rowCat === cat)
+      && (!st || rowSt === st);
+
+    row.classList.toggle('hidden', !show);
+    const detail = document.getElementById('detail-' + id);
+    if (detail && !show) detail.classList.remove('visible');
+
+    if (show) {
+      if (rowSev === 'red') rc++;
+      else if (rowSev === 'amber') ac++;
+      else gc++;
+    }
+  });
+
+  document.getElementById('cnt-red').textContent = rc;
+  document.getElementById('cnt-amber').textContent = ac;
+  document.getElementById('cnt-green').textContent = gc;
+}
+
+function currentFindings() {
+  const rows = [...document.querySelectorAll('.finding-row:not(.hidden)')];
+  return rows.map(row => {
+    const id = row.dataset.id;
+    const cells = row.querySelectorAll('td');
+    return {
+      id,
+      severity: row.dataset.sev,
+      category: row.dataset.cat,
+      title: cells[3].innerText,
+      location: cells[4].innerText,
+      confidence: cells[5].innerText,
+      status: statuses[id] || row.querySelector('.status-select').value,
+    };
+  });
+}
+
+function exportCSV() {
+  const fs = currentFindings();
+  const header = 'ID,Severity,Category,Title,Location,Confidence,Status\n';
+  const rows = fs.map(f =>
+    [f.id, f.severity, f.category, `"${f.title}"`, f.location, f.confidence, f.status].join(',')
+  ).join('\n');
+  download('codeaudit-findings.csv', 'text/csv', header + rows);
+}
+
+function exportJSON() {
+  download('codeaudit-findings.json', 'application/json', JSON.stringify(currentFindings(), null, 2));
+}
+
+function download(name, type, content) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = name;
+  a.click();
+}
+
+let sortDir = {};
+function sortTable(col) {
+  const tbody = document.getElementById('findings-body');
+  const pairs = [];
+  const rows = [...tbody.querySelectorAll('.finding-row')];
+  rows.forEach(r => pairs.push([r, document.getElementById('detail-' + r.dataset.id)]));
+
+  const dir = sortDir[col] = !(sortDir[col]);
+  pairs.sort((a, b) => {
+    const ta = a[0].querySelectorAll('td')[col]?.innerText || '';
+    const tb = b[0].querySelectorAll('td')[col]?.innerText || '';
+    return dir ? ta.localeCompare(tb) : tb.localeCompare(ta);
+  });
+  pairs.forEach(([r, d]) => { tbody.appendChild(r); if (d) tbody.appendChild(d); });
+}
+</script>
+</body>
+</html>
